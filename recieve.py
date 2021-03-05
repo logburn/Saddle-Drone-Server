@@ -1,9 +1,10 @@
 import socket
 from Crypto.Cipher import PKCS1_OAEP as RSA
-from Crypto.Cipher import AES
+#from Crypto.Cipher import AES
 from cryptography.fernet import Fernet
 import os
 import glob
+import time
 
 # global vars
 endmessage = "---endmessage---"
@@ -25,12 +26,18 @@ def getStream(bytelen):
     while not done:
         msg = c.recv(bytelen)
         if newmsg:
-            msglen = int(msg[:HEADERSIZE])
+            msglen = int(str(msg[:HEADERSIZE].decode("utf-8")))
+            print(str(msglen))
             newmsg = False
         fullmsg += msg.decode("utf-8")
         if len(fullmsg) - HEADERSIZE == msglen:
+            print(f"{len(fullmsg) - HEADERSIZE} : {msglen}")
             done = True
             return fullmsg[HEADERSIZE:]
+        else:
+            if len(fullmsg) - HEADERSIZE > msglen:
+                done = True
+            print(f"{len(fullmsg) - HEADERSIZE} | {msglen}")
 
 # TODO decrypt text with PGP key
 def decryptPGP(text):
@@ -53,6 +60,7 @@ s.bind((host, port))
 s.listen(5)
 
 while True:
+    '''
     # initial vars, connect with client device
     c, addr = s.accept()
     print(f'Got connection from {addr}')
@@ -66,22 +74,25 @@ while True:
         # update user because this might take some time
         print("Recieved data (" + str(i+1) + "/" + str(numFiles) + ")")
     c.close()
-
+    '''
     # decrypt the files
     print("Decrypting files...")
     # get all video and key files in array (strings of file locations)
     vidset = [file for file in glob.glob("videos/encrypted/*", recursive=False)]
     keyset = [file for file in glob.glob("keys/*", recursive=False)]
+    location = "videos/plaintext/" + str(int(time.time()))
+    os.mkdir(location)
     for i in range(len(vidset)):
         # read the key and video file into vars
         key = bytes(open(keyset[i], "r").read(), 'utf-8')
         text = bytes(str(open(vidset[i], "r").read()), 'utf-8')
         # write the decrypted video file info into an mp4 file
-        with open("videos/plaintext/"+str(i+1)+".mp4", "wb+") as mp4:
+        with open(location + "/" + str(i+1) + ".mp4", "wb+") as mp4:
             mp4.write(decryptText(text, key))
         # delete the old files
-        os.remove(vidset[i])
-        os.remove(keyset[i])
+        #os.remove(vidset[i])
+        #os.remove(keyset[i])
+        print(f"(dev mode) Would have deleted {vidset[i]} and {keyset[i]}")
 
     print('Done')
     exit()
