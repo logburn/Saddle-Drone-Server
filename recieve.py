@@ -1,10 +1,10 @@
 import socket
 from Crypto.Cipher import PKCS1_OAEP as RSA
-#from Crypto.Cipher import AES
-from cryptography.fernet import Fernet
+from Crypto.Cipher import AES
 import os
 import glob
 import time
+import requests
 
 # global vars
 endmessage = "---endmessage---"
@@ -47,9 +47,41 @@ def decryptPGP(text):
     key = RSA.importKey(keytext)
     return key.decrypt(text)[0]
 
+# decrypt files with given keyset
+def decryptSet(keyset, vidset, verbose=False):
+    location = "videos/plaintext/" + str(int(time.time()))
+    os.mkdir(location)
+    if verbose:
+        print("Created folder to store files")
+    for i in range(len(vidset)):
+        file_in = open(vidset[i], "rb")
+        nonce, tag, ciphertext = [ file_in.read(x) for x in (16, 16, -1) ]
+        key = open(keyset[i], "rb")
+        cipher = AES.new(key.read(), AES.MODE_EAX, nonce)
+        data = cipher.decrypt_and_verify(ciphertext, tag)
+        with open(location + "/" + str(i+1) + ".mp4", "wb+") as mp:
+            mp.write(data)
+        if verbose:
+            print(f"Decrypted file ({i+1}/{len(vidset)})")
+
+def downloadFromServer(urlWithPort, verbose=False):
+    url = urlWithPort + '/numFiles.txt'
+    r = requests.get(url, allow_redirects=True)
+    if verbose:
+        print("Downloading files...")
+    for i in range(int(r.content)):
+        url = urlWithPort + "/keys/" + str(i+1) + ".asc"
+        with open("keys/" + str(i+1) + ".asc", "wb+") as keyf:
+            keyf.write(requests.get(url, allow_redirects=True).content)
+        url = urlWithPort + "/videos/encrypted/" + str(i+1) + ".mpc"
+        with open("videos/encrypted/" + str(i+1) + ".mpc", "wb+") as vidf:
+            vidf.write(requests.get(url, allow_redirects=True).content)
+        if verbose:
+            print(f"Recieved ({i+1}/{int(r.content)})")
+
 # decrypt text
-def decryptText(text, fkey):
-    return Fernet(fkey).decrypt(text)
+#def decryptText(text, fkey):
+#    return Fernet(fkey).decrypt(text)
 
 # establish connection with client and download files
 s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -61,6 +93,7 @@ s.listen(5)
 
 while True:
     '''
+    OBSOLETE
     # initial vars, connect with client device
     c, addr = s.accept()
     print(f'Got connection from {addr}')
@@ -74,7 +107,6 @@ while True:
         # update user because this might take some time
         print("Recieved data (" + str(i+1) + "/" + str(numFiles) + ")")
     c.close()
-    '''
     # decrypt the files
     print("Decrypting files...")
     # get all video and key files in array (strings of file locations)
@@ -93,6 +125,42 @@ while True:
         #os.remove(vidset[i])
         #os.remove(keyset[i])
         print(f"(dev mode) Would have deleted {vidset[i]} and {keyset[i]}")
+    '''
+
+    # download all videos
+    downloadFromServer("http://10.25.10.125:63655")
+
+    # get all video and key files in array (strings of file locations)
+    vidset = [file for file in glob.glob("videos/encrypted/*", recursive=False)]
+    keyset = [file for file in glob.glob("keys/*", recursive=False)]
+    decryptSet(keyset, vidset)
+
+    '''
+    location = "videos/plaintext/" + str(int(time.time()))
+    os.mkdir(location)
+    for i in range(len(vidset)):
+        file_in = open(vidset[i], "rb")
+        nonce, tag, ciphertext = [ file_in.read(x) for x in (16, 16, -1) ]
+        key = open(keyset[i], "rb")
+        cipher = AES.new(key.read(), AES.MODE_EAX, nonce)
+        data = cipher.decrypt_and_verify(ciphertext, tag)
+        with open(location + "/" + str(i+1) + ".mp4", "wb+") as mp:
+            mp.write(data)
+    '''
+    '''
+ 
+    url = 'http://10.25.10.125:63655/numFiles.txt'
+    r = requests.get(url, allow_redirects=True)
+    print("Downloading files...")
+    for i in range(int(r.content)):
+        url = "http://10.25.10.125:63655/keys/" + str(i+1) + ".asc"
+        with open("keys/" + str(i+1) + ".asc", "wb+") as keyf:
+            keyf.write(requests.get(url, allow_redirects=True).content)
+        url = "http://10.25.10.125:63655/videos/encrypted/" + str(i+1) + ".mpc"
+        with open("videos/encrypted/" + str(i+1) + ".mpc", "wb+") as vidf:
+            vidf.write(requests.get(url, allow_redirects=True).content)
+        print(f"Recieved ({i+1}/{int(r.content)})") 
+    '''
 
     print('Done')
     exit()
