@@ -1,5 +1,6 @@
 import socket
-from Crypto.Cipher import PKCS1_OAEP as RSA
+from Crypto.PublicKey import RSA
+from Crypto.Cipher import PKCS1_OAEP as pkrsa
 from Crypto.Cipher import AES
 import os
 import glob
@@ -39,13 +40,14 @@ def getStream(bytelen):
                 done = True
             print(f"{len(fullmsg) - HEADERSIZE} | {msglen}")
 
-# TODO decrypt text with PGP key
-def decryptPGP(text):
-    return text
-    # keytext = open("prikey.pem", "r").read()
-    keytext = "-----BEGIN RSA PRIVATE KEY-----\nMIIEpQIBAAKCAQEAuk5egzauVPCxuNvWcJAAISIxcvsdXQFFB5lYUdOgv8Dcyva/\n9kh76R2TEay0K3kEpXBx/M4YdiAIg0XoTYUxWNR3vGy4sWuAkF1WPF0hCJcx/GGC\nCszl7NqMDz7uedBSkJG4sIyOCnmxJli/Y7O+xoENb1DvJ4U7b0n3AHkovlsfkw8z\nwOVsc9dUnPbZmrzbd99HYoRFPKnAVgF+vGY62qRj2GvsJzRAC0K8HMxJv0r/V+3O\n+fwqGCnJlCcadgMJUuHPDVdYVXgEZZ1iYdwFpPHLML2DEOd3y3DJAy1F59IkEGAr\nULQbu7SdqwaFkU1Y2euZXb/J1q/9C/GhppQH9QIDAQABAoIBACxgf3W8wCC+Zm7U\neos8WbOKvAGZ3AArzcAGIDn5cUhLjawQw1/MGyvHXiEvJIlYXal0k8o2YzA76Bsw\nuyk/6SWyEkVBFms4YprAiMp/Gl+79+2YYkvlS30z/3mgMVi1rPz/oOD40dqf6vjp\n2cjLZ01MLyGNQzIEM8iJ8zpbIb/Zd496n6awH+am4+9tD5o87aI0mx0PwS0zCUfX\nbFg6ns42XS2FuAiKeqMkmNcoo6G0E/6zDw7dk4MfJ5UNDIkSJ+r3UHjXOi1Zn4BW\n0uNYIV9BdJlyiKTB+edTxe0IzSpaBnPp+3f5CKeR9V/T3apLet/EFbYzyJ0KSi31\nMTUW64ECgYEA0FJ++cqVSUz2AtBOY9yF362LlRH60DQe7JiDHAFZmhN/iMw+VBOr\nKsSOAtSx01Cr5iD9KO/CqJCVFmdM4lzvJklcpOyNhNwt8B8kc8R+QLi+wfBCLy3q\nODp7UcWhKAV3hsAGx1ct8fWNtkfI7v+BaPN6ablNFYKHJa5RvUTsizUCgYEA5PH1\nezOLDukj+QRf3DE2u0HZRWmv807gA1+tuicDn9JAbK7FFLbdANDwd2TC5wYGGUaR\nTrk6CGKlp0H/P0VJbjUIHQOtLz4Xao91wU8iLdrcKeVoELgJqO0em3YUdOEpcdUT\ny06SBImz3T+NS/NP7GcxbSJ+Fqc07p2iAUGAYcECgYEAonQixuK/JklY83rEFsXq\ntDKeziIWSHTMxM5uN9GpsSiRZPl5hZFNAu4CnJyHC/Y2ByEkqt7GGzOcv7rQzxmP\n+XhuQcKi3b/iJwXyJEFP/2LSh2S4CBizNSQN9Qe8E/ynaDKpVpxanPxThZlXTWF8\n5n4wsO+q+CIxCCZ3YbS1Dh0CgYEAuOWwG4/E/oXLR5EA2hPk39aOYkC4mQdaY18i\nLvTTOH/VB/EduVz1n3MewU3fGjUDN+aF884j0CHbJvll6vNKGnc51jTh6QV8Y9L4\nhuYh9GaM6EkdgmMfag4WafczDjHKBuTO16Lcyk1rtYNd2bjnE0VD5Z+1tRXU6eDk\ntZ7w0AECgYEAo+tRkqj12gVWYFNK5Ij7zfzn7Iv0pGiyq+sa+8PBEeziKGGRPyjn\nKlpAYmOlSr9aKAtE8JKCvrAfrQHFo3dQRxWQAppiuY38zu2dxXUOpdF3Wb9Tfk4Y\nMMDhzybUSNa0tq4rVg6xaeQvIwNx2SGk93tUul0JBh6vzrF+eB7WYu8=\n-----END RSA PRIVATE KEY-----"
-    key = RSA.importKey(keytext)
-    return key.decrypt(text)[0]
+def decryptRSA(data):
+    key = RSA.import_key(open("privatekey.pem").read())
+    cipher = pkrsa.new(key)
+    return cipher.decrypt(data)
+
+# simplifier helper function to call current publickey decryption method
+def PKdecrypt(data):
+    return decryptRSA(data)
 
 # decrypt files with given keyset
 def decryptSet(keyset, vidset, verbose=False):
@@ -56,8 +58,9 @@ def decryptSet(keyset, vidset, verbose=False):
     for i in range(len(vidset)):
         file_in = open(vidset[i], "rb")
         nonce, tag, ciphertext = [ file_in.read(x) for x in (16, 16, -1) ]
-        key = open(keyset[i], "rb")
-        cipher = AES.new(key.read(), AES.MODE_EAX, nonce)
+        key = open(keyset[i], "rb").read()
+        key = PKdecrypt(key)
+        cipher = AES.new(key, AES.MODE_EAX, nonce)
         data = cipher.decrypt_and_verify(ciphertext, tag)
         with open(location + "/" + str(i+1) + ".mp4", "wb+") as mp:
             mp.write(data)
@@ -78,10 +81,6 @@ def downloadFromServer(urlWithPort, verbose=False):
             vidf.write(requests.get(url, allow_redirects=True).content)
         if verbose:
             print(f"Recieved ({i+1}/{int(r.content)})")
-
-# decrypt text
-#def decryptText(text, fkey):
-#    return Fernet(fkey).decrypt(text)
 
 # establish connection with client and download files
 s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
