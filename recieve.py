@@ -14,6 +14,7 @@ servername = "http://10.25.10.177:63654"
 HEADERSIZE = 20
 BYTELEN = 1024
 BYTELENBIG = 4096
+verbose = True
 
 # helper functions
 def get_ip():
@@ -39,7 +40,7 @@ def PKdecrypt(data):
     return decryptRSA(data)
 
 # decrypt files with given keyset
-def decryptSet(keyset, vidset, verbose=False):
+def decryptSet(keyset, vidset):
     location = "videos/plaintext/" + str(int(time.time()))
     os.mkdir(location)
     if verbose:
@@ -57,7 +58,7 @@ def decryptSet(keyset, vidset, verbose=False):
         if verbose:
             print(f"Decrypted file ({i+1}/{len(vidset)})")
 
-def downloadFromServer(urlWithPort, verbose=False):
+def downloadFromServer(urlWithPort):
     url = urlWithPort + '/numFiles.txt'
     r = requests.get(url, allow_redirects=True)
     if verbose:
@@ -80,8 +81,8 @@ while True:
     vidset = [file for file in glob.glob("videos/encrypted/*", recursive=False)]
     keyset = [file for file in glob.glob("keys/*", recursive=False)]
     decryptSet(keyset, vidset)
-
-    print('Done')
+    if(verbose):
+        print('Done')
     exit()
 
 # stitch files together (TODO later)
